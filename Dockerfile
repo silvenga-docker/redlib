@@ -1,4 +1,24 @@
-FROM ubuntu:noble AS base
+FROM rust:1-bookworm AS builder
+
+ARG TARGET=x86_64-unknown-linux-musl
+
+WORKDIR /source
+
+RUN set -xe \
+    && apt-get update \
+    && apt-get install -y \
+    git \
+    musl-tools \
+    && rustup target add ${TARGET}
+
+RUN set -xe \
+    && git clone https://github.com/redlib-org/redlib . \
+    && RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target ${TARGET} \
+    && mkdir /app \
+    && mv target/${TARGET}/release/redlib /app/redlib \
+    && chmod +x /app/redlib
+
+FROM ubuntu:noble AS final
 
 LABEL org.opencontainers.image.authors "Mark Lopez <m@silvenga.com>"
 
@@ -8,17 +28,11 @@ RUN set -xe \
     # Common
     && apt-get install -y \
     wget \
-    # Redlib
-    && wget https://github.com/redlib-org/redlib/releases/latest/download/redlib -O /tmp/redlib \
-    && wget https://github.com/redlib-org/redlib/releases/latest/download/redlib.sha512  -O /tmp/redlib.sha512 \
-    && sed -i -e 's/target\/x86_64-unknown-linux-musl\/release/\/tmp/g' /tmp/redlib.sha512 \
-    && sha512sum --check /tmp/redlib.sha512 \
-    && mv /tmp/redlib /usr/bin/redlib \
-    && chmod +x /usr/bin/redlib \
-    && rm /tmp/redlib.sha512 \
     # Cleanup
     && apt-get autoremove -y --purge \
     && apt-get -q clean -y && rm -rf /var/lib/apt/lists/* && rm -f /var/cache/apt/*.bin
+
+COPY --from=builder /app/redlib /usr/bin/redlib
 
 # Default user in Ubuntu Noble.
 USER 1000
