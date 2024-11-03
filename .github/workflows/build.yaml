@@ -13,4 +13,6 @@ on:
 jobs:
   build:
     uses: silvenga-docker/building/.github/workflows/publish-github.yaml@master
+    with:
+      no-cache: true
     secrets: inherit
